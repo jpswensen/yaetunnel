@@ -1,0 +1,15 @@
+[Unit] 
+Description=Yet Anoterh Easy Tunnel  
+After=network-online.target
+
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/src/yaetunnel
+ExecStart=python3.8 /home/pi/src/yaetunnel/yaetunnel-client
+ExecStop=/usr/bin/pkill -9 -f python.*yaetunnel-client
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
