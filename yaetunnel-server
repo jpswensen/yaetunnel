@@ -22,14 +22,8 @@ def create_yaetunnel_db(fn='yaetunnel.db'):
             NAME           TEXT    NOT NULL,
             UUID           TEXT    NOT NULL,
             TUN_PORT       INT     NOT NULL,
-            DEST_PORT      INT     NOT NULL);''')
-        # conn.execute('''CREATE TABLE DESTINATIONS
-        #     (ID INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-        #     NAME           TEXT    NOT NULL,
-        #     UUID           TEXT    NOT NULL,
-        #     TUN_PORT       INT     NOT NULL,
-        #     DEST_PORT      INT     NOT NULL,
-        #     CONNECTED      INT     DEFAULT 0);''')
+            DEST_PORT      INT     NOT NULL,
+            CONNECTED      INT     DEFAULT 0);''')
         conn.close()
     else:
         # print(f'Database {fn} already exists')
@@ -81,6 +75,18 @@ def delete_handler(conn,args):
         print('FAIL')
     print('SUCCESS')
 
+def update_connection_status(conn,tun_port, status):
+    try:
+        cursor = conn.cursor()
+        sql_update_query = f"""UPDATE DESTINATIONS set CONNECTED = {status} where TUN_PORT = {tun_port}"""
+        #print(sql_update_query)
+        cursor.execute(sql_update_query)
+        conn.commit()
+        #print("Record Updated successfully ")
+        cursor.close()
+    except sqlite3.Error as error:
+        print("Failed to update sqlite table", error)
+
 def query_handler(conn,args):
     # print('Querying the list of destinations')
 
@@ -88,20 +94,20 @@ def query_handler(conn,args):
         # First, update the database with the connection status of all the entries    
         cmd = "SELECT * FROM DESTINATIONS"
         iterator = conn.cursor()
-        iterator.execute(cmd)
-        
+        iterator.execute(cmd)        
         for row in iterator.fetchall():
             name = row[1]
             tun_port = row[3]
             search_str = f'127.0.0.1:{tun_port}'
-            py2output = subprocess.check_output(['netstat', '-tuln'])
+            py2output = subprocess.check_output(['netstat', '-tuln'], encoding='UTF-8')
             idx = py2output.find(search_str)
             if idx != -1:
-                print(f'Port {tun_port} CONNECTED for device {name}')
+                #print(f'Port {tun_port} CONNECTED for device {name}')
+                update_connection_status(conn,tun_port,1)
             else:
-                print(f'Port {tun_port} DISCONNECTED for device {name}')
-            
-
+                #print(f'Port {tun_port} DISCONNECTED for device {name}')
+                update_connection_status(conn,tun_port,0)
+     
         # Second, query the list and return than    
         cmd = "SELECT * FROM DESTINATIONS"
         if args.name is not None:
@@ -113,7 +119,7 @@ def query_handler(conn,args):
         iterator.execute(cmd)
         dests = []    
         for row in iterator.fetchall():
-            dest = {'name':row[1], 'uuid':row[2], 'tun_port':row[3], 'dest_port':row[4]}        
+            dest = {'name':row[1], 'uuid':row[2], 'tun_port':row[3], 'dest_port':row[4], 'connected':row[5]}        
             dests.append(dest)
         dests_json = json.dumps(dests, indent=2)
         print(dests_json)
