@@ -1,7 +1,5 @@
 #!/usr/bin/python3
-import sqlite3
-import argparse
-from pathlib import Path
+
 import json
 import hashlib
 import uuid
@@ -23,8 +21,6 @@ def ssh_ctrl(ip, user, pemfile, cmd):
     key = paramiko.RSAKey.from_private_key_file(os.path.expanduser(pemfile))
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    # timeout=tout, 
-    print(ip)
     try:
         ssh.connect(hostname=ip, username=user, pkey = key, compress = True,look_for_keys=False, allow_agent=False)
     except (socket.error,paramiko.AuthenticationException,paramiko.SSHException) as message:
@@ -51,7 +47,6 @@ def add_missing_ports(pemfile, ports, server_ports_query):
     for port in ports:
         if not is_port_configured(port,server_ports_query):
             print(f'Port {port} not configured. Adding to server')
-            # TODO:
             cmd = f'~/src/yaetunnel/yaetunnel-server add --name={name} --uuid={new_uuid} --dest_port={port}'
             out = ssh_ctrl(server,'ec2-user',pemfile,cmd)
 
@@ -67,7 +62,6 @@ pem_file = config['YAETUNNEL']['pem']
 m = hashlib.md5()
 m.update(name.encode('utf-8'))
 new_uuid = uuid.UUID(m.hexdigest())
-print(f'Name:{name}  UUID:{new_uuid}  Ports:{ports}')
 
 # First, we ssh to query if in the database
 # TODO: Need to fix this so that it points to the default location
@@ -82,13 +76,9 @@ add_missing_ports(pem_file, ports, server_ports_query)
 # Step 2: Query the server table for this host again so that we know the tunnel port and the destination port
 server_ports_query = query_destination_ports(pem_file, name)
 for entry in server_ports_query:
-    print(entry)
     tunnel_port = entry['tun_port']
     destination_port = entry['dest_port']
 
-    #cmd = f'/usr/bin/autossh -i {pem_file} -N ec2-user@{server} -R {tunnel_port}:localhost:{destination_port}'
-    #print(cmd)
-    #os.system(cmd)
     cmd_Popen = [autossh,'-i',pem_file,'-N',f'ec2-user@{server}','-R',f'{tunnel_port}:localhost:{destination_port}']
 
     print(f'AUTOSSH CMD: {cmd_Popen}')
@@ -97,12 +87,3 @@ for entry in server_ports_query:
     
 while True:
     time.sleep(1.0)
-
-# for port in ports:
-#     if not is_port_configured(port,server_ports_query):
-#         print(f'Port {port} not configured')
-#         # TODO:
-#         cmd = f'~/src/yaetunnel/yaetunnel-server add --name={name} --uuid={new_uuid} --dest_port={port}'
-#         out = ssh_ctrl('localhost','jpswensen','Cerete02',cmd)
-
-

@@ -1,0 +1,45 @@
+#!/usr/bin/python3
+
+import argparse
+from pathlib import Path
+import json
+
+
+
+
+
+
+
+
+
+
+
+parser = argparse.ArgumentParser()
+subparsers = parser.add_subparsers(help='yaetunnel - Tunnel to a destination over and intermediate server')
+#parser.add_argument("-v", ...)
+
+add_parser = subparsers.add_parser("list")
+remove_parser = subparsers.add_parser("connect")
+
+add_parser.add_argument("--name", help="The name of the machine being register")
+add_parser.add_argument("--uuid", help="A unique identifier for the machine")
+add_parser.add_argument("--dest_port", help="The destination port")
+add_parser.set_defaults(func=add_handler)
+
+remove_parser.add_argument("--name")
+remove_parser.add_argument("--uuid")
+remove_parser.set_defaults(func=delete_handler)
+
+query_parser.add_argument("--name")
+query_parser.add_argument("--uuid")
+query_parser.set_defaults(func=query_handler)
+
+args = parser.parse_args()
+try:
+    func = args.func
+except AttributeError:
+    parser.error('Too few arguments provided')
+
+
+conn = sqlite3.connect('/home/ec2-user/src/yaetunnel/yaetunnel.db')
+args.func(conn,args)

@@ -3,6 +3,7 @@ import sqlite3
 import argparse
 from pathlib import Path
 import json
+import subprocess
 
 
 def find_lowest_missing(lst):
@@ -21,7 +22,14 @@ def create_yaetunnel_db(fn='yaetunnel.db'):
             NAME           TEXT    NOT NULL,
             UUID           TEXT    NOT NULL,
             TUN_PORT       INT     NOT NULL,
-            DEST_PORT      INT    NOT NULL);''')
+            DEST_PORT      INT     NOT NULL);''')
+        # conn.execute('''CREATE TABLE DESTINATIONS
+        #     (ID INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        #     NAME           TEXT    NOT NULL,
+        #     UUID           TEXT    NOT NULL,
+        #     TUN_PORT       INT     NOT NULL,
+        #     DEST_PORT      INT     NOT NULL,
+        #     CONNECTED      INT     DEFAULT 0);''')
         conn.close()
     else:
         # print(f'Database {fn} already exists')
@@ -34,7 +42,7 @@ def add_handler(conn,args):
     # print(args.uuid)
     # print(args.ports)
     # TODO: First find the next available port larger than a specific number
-    tun_port = 22001
+    tun_port = 19999
 
     try:
         iterator = conn.cursor()
@@ -75,7 +83,26 @@ def delete_handler(conn,args):
 
 def query_handler(conn,args):
     # print('Querying the list of destinations')
+
     try:
+        # First, update the database with the connection status of all the entries    
+        cmd = "SELECT * FROM DESTINATIONS"
+        iterator = conn.cursor()
+        iterator.execute(cmd)
+        
+        for row in iterator.fetchall():
+            name = row[1]
+            tun_port = row[3]
+            search_str = f'127.0.0.1:{tun_port}'
+            py2output = subprocess.check_output(['netstat', '-tuln'])
+            idx = py2output.find(search_str)
+            if idx != -1:
+                print(f'Port {tun_port} CONNECTED for device {name}')
+            else:
+                print(f'Port {tun_port} DISCONNECTED for device {name}')
+            
+
+        # Second, query the list and return than    
         cmd = "SELECT * FROM DESTINATIONS"
         if args.name is not None:
             cmd = f"""SELECT * FROM DESTINATIONS WHERE name = '{args.name}';"""
