@@ -10,6 +10,7 @@ import subprocess
 import os
 import texttable
 import sys
+import socket
 
 def ssh_ctrl(ip, user, pemfile, cmd):
     key = paramiko.RSAKey.from_private_key_file(os.path.expanduser(pemfile))
