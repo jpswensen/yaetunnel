@@ -93,7 +93,7 @@ def query_handler(conn,args):
     except:
         print('FAIL')
 
-create_yaetunnel_db()
+create_yaetunnel_db("/home/ec2-user/src/yaetunnel/yaetunnel.db")
 
 parser = argparse.ArgumentParser()
 subparsers = parser.add_subparsers(help='Commands of yaetunnel')
@@ -123,5 +123,5 @@ except AttributeError:
     parser.error('Too few arguments provided')
 
 
-conn = sqlite3.connect('/Users/jpswensen/src/yaetunnel/yaetunnel.db')
+conn = sqlite3.connect('/home/ec2-user/src/yaetunnel/yaetunnel.db')
 args.func(conn,args)
