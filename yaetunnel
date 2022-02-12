@@ -1,16 +1,102 @@
 #!/usr/bin/python3
-
 import argparse
 from pathlib import Path
 import json
+import configparser
+import paramiko
+from pathlib import Path
+import json
+import subprocess
+import os
+import texttable
+import sys
+
+def ssh_ctrl(ip, user, pemfile, cmd):
+    key = paramiko.RSAKey.from_private_key_file(os.path.expanduser(pemfile))
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        ssh.connect(hostname=ip, username=user, pkey = key, compress = True,look_for_keys=False, allow_agent=False)
+    except (socket.error,paramiko.AuthenticationException,paramiko.SSHException) as message:
+        print(f"ERROR: SSH connection to {ip} failed: {str(message)}")
+        sys.exit(1)
+
+    stdin, stdout, ssh_stderr = ssh.exec_command(cmd)
+    out = stdout.read()
+    stdin.flush()
+    ssh.close()
+    return out
+
+def query_registered_ports(pemfile,server):
+    cmd = f'~/src/yaetunnel/yaetunnel-server query'
+    out = ssh_ctrl(server,'ec2-user',pemfile,cmd)
+    
+    server_ports_query = []
+    if len(out) > 0:
+        server_ports_query = json.loads(out)
+
+    return server_ports_query
 
 
+def list_handler(args):
 
+    config = configparser.ConfigParser()
+    config.read('yaetunnel.ini')
+    server = config['YAETUNNEL']['server']
+    pem_file = config['YAETUNNEL']['pem']
+    
+    registered_ports = query_registered_ports(pem_file,server)
+    table = texttable.Texttable()
+    table.header(["device","port","connected"])
+    for entry in registered_ports:
+        #print(entry)
+        table.add_row([entry["name"], entry["dest_port"], entry["connected"]])
+    table.set_cols_align(['l', 'r', 'r'])
+    print(table.draw())
 
+def connect_handler(args):
+    pass
 
+    config = configparser.ConfigParser()
+    config.read('yaetunnel.ini')
+    server = config['YAETUNNEL']['server']
+    pem_file = config['YAETUNNEL']['pem']
+    
+    registered_ports = query_registered_ports(pem_file,server)
+    if args.name is None or args.port is None:
+        print('ERROR: you must provide a device name and port')
+    else:
+        entry_found = None
 
+        print(f'Searching for device {args.name} on port {args.port}')
+        for entry in registered_ports:
+            if entry["name"] == args.name and int(entry["dest_port"]) == int(args.port):
+                entry_found = entry
+                break
+        
+        if entry_found is None:
+            print("The specified device and port could not be found")
+        elif entry_found["connected"] == 0:
+            print("The device with the specified name and port is not connected")
+        else:
+            print(f"Should create tunnel to {entry['name']} on port {entry['dest_port']} through tunnel port {entry['tun_port']}")
 
-
+        if int(args.port) == 22: # special case for ssh
+            cmd = f"ssh -i {pem_file} -A -t ec2-user@{server} ssh -A -p{entry['tun_port']} pi@localhost"                
+            if args.newterm is not None: 
+                if "darwin" in sys.platform:
+                    os.system(f"""osascript -e 'tell app "Terminal" to do script "{cmd}"'""")
+                else:
+                    print('Need to figure out how to launch a new terminal on other platforms')
+            else:            
+                os.system(cmd)
+        
+        else:
+            pass
+            # TODO: Need to create a standard tunnel and then spin
+            #cmd = f"ssh -i {pem_file} -A -t ec2-user@{server} ssh -A -p{entry['tun_port']} pi@localhost"                
+            cmd_tun = f"ssh -i {pem_file} -N -L {entry['tun_port']}:localhost:{entry['tun_port']} ec2-user@{server}"
+            os.system(cmd_tun)
 
 
 
@@ -18,21 +104,17 @@ parser = argparse.ArgumentParser()
 subparsers = parser.add_subparsers(help='yaetunnel - Tunnel to a destination over and intermediate server')
 #parser.add_argument("-v", ...)
 
-add_parser = subparsers.add_parser("list")
-remove_parser = subparsers.add_parser("connect")
+list_parser = subparsers.add_parser("list")
+connect_parser = subparsers.add_parser("connect")
 
-add_parser.add_argument("--name", help="The name of the machine being register")
-add_parser.add_argument("--uuid", help="A unique identifier for the machine")
-add_parser.add_argument("--dest_port", help="The destination port")
-add_parser.set_defaults(func=add_handler)
+list_parser.add_argument("--name", help="The name of the machine being register")
+list_parser.add_argument("--uuid", help="A unique identifier for the machine")
+list_parser.set_defaults(func=list_handler)
 
-remove_parser.add_argument("--name")
-remove_parser.add_argument("--uuid")
-remove_parser.set_defaults(func=delete_handler)
-
-query_parser.add_argument("--name")
-query_parser.add_argument("--uuid")
-query_parser.set_defaults(func=query_handler)
+connect_parser.add_argument("--name")
+connect_parser.add_argument("--port")
+connect_parser.add_argument("--newterm",action='store_true')
+connect_parser.set_defaults(func=connect_handler)
 
 args = parser.parse_args()
 try:
@@ -40,6 +122,4 @@ try:
 except AttributeError:
     parser.error('Too few arguments provided')
 
-
-conn = sqlite3.connect('/home/ec2-user/src/yaetunnel/yaetunnel.db')
-args.func(conn,args)
+args.func(args)
