@@ -1,0 +1,127 @@
+#!/usr/bin/python3
+import sqlite3
+import argparse
+from pathlib import Path
+import json
+
+
+def find_lowest_missing(lst):
+
+    missing = [x for x in range(lst[0], lst[-1]+1) 
+                               if x not in lst]
+    return missing[0]
+
+def create_yaetunnel_db(fn='yaetunnel.db'):
+    path = Path(fn)
+    if not path.is_file():
+        # print('Creating database and populating')
+        conn = sqlite3.connect(fn)
+        conn.execute('''CREATE TABLE DESTINATIONS
+            (ID INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            NAME           TEXT    NOT NULL,
+            UUID           TEXT    NOT NULL,
+            TUN_PORT       INT     NOT NULL,
+            DEST_PORT      INT    NOT NULL);''')
+        conn.close()
+    else:
+        # print(f'Database {fn} already exists')
+        pass
+
+def add_handler(conn,args):
+    # print('Adding a new destination or ports')
+    # print(conn)
+    # print(args.name)
+    # print(args.uuid)
+    # print(args.ports)
+    # TODO: First find the next available port larger than a specific number
+    tun_port = 22001
+
+    try:
+        iterator = conn.cursor()
+        iterator.execute("SELECT tun_port FROM DESTINATIONS")
+        tun_ports = []    
+        for row in iterator.fetchall():
+            tun_ports.append(row[0])
+        tun_ports.append(19999)
+        tun_ports.append(max(tun_ports)+2)
+        tun_ports = sorted(set(tun_ports))
+        
+        tun_port = find_lowest_missing(tun_ports)
+
+        cmd = f"""INSERT INTO DESTINATIONS (NAME,UUID,TUN_PORT,DEST_PORT) VALUES ('{args.name}','{args.uuid}',{tun_port},{args.dest_port});"""
+        #print (cmd)
+        conn.execute (cmd)
+        conn.commit()
+    except:
+        print('FAIL')
+    
+    print('SUCCESS')
+
+def delete_handler(conn,args):
+    # print('Removing a destination')
+    try:
+        cmd = ''
+        if args.name is not None:
+            cmd = f"""DELETE FROM DESTINATIONS WHERE name = '{args.name}';"""
+        elif args.uuid is not None:
+            cmd = f"""DELETE FROM DESTINATIONS WHERE uuid = '{args.uuid}';"""
+        
+        # print (cmd)
+        conn.execute (cmd)
+        conn.commit()
+    except:
+        print('FAIL')
+    print('SUCCESS')
+
+def query_handler(conn,args):
+    # print('Querying the list of destinations')
+    try:
+        cmd = "SELECT * FROM DESTINATIONS"
+        if args.name is not None:
+            cmd = f"""SELECT * FROM DESTINATIONS WHERE name = '{args.name}';"""
+        elif args.uuid is not None:
+            cmd = f"""SELECT FROM DESTINATIONS WHERE uuid = '{args.uuid}';"""
+
+        iterator = conn.cursor()
+        iterator.execute(cmd)
+        dests = []    
+        for row in iterator.fetchall():
+            dest = {'name':row[1], 'uuid':row[2], 'tun_port':row[3], 'dest_port':row[4]}        
+            dests.append(dest)
+        dests_json = json.dumps(dests, indent=2)
+        print(dests_json)
+    except:
+        print('FAIL')
+
+create_yaetunnel_db()
+
+parser = argparse.ArgumentParser()
+subparsers = parser.add_subparsers(help='Commands of yaetunnel')
+#parser.add_argument("-v", ...)
+
+add_parser = subparsers.add_parser("add")
+remove_parser = subparsers.add_parser("delete")
+query_parser = subparsers.add_parser("query")
+
+add_parser.add_argument("--name", help="The name of the machine being register")
+add_parser.add_argument("--uuid", help="A unique identifier for the machine")
+add_parser.add_argument("--dest_port", help="The destination port")
+add_parser.set_defaults(func=add_handler)
+
+remove_parser.add_argument("--name")
+remove_parser.add_argument("--uuid")
+remove_parser.set_defaults(func=delete_handler)
+
+query_parser.add_argument("--name")
+query_parser.add_argument("--uuid")
+query_parser.set_defaults(func=query_handler)
+
+args = parser.parse_args()
+try:
+    func = args.func
+except AttributeError:
+    parser.error('Too few arguments provided')
+
+
+conn = sqlite3.connect('/Users/jpswensen/src/yaetunnel/yaetunnel.db')
+args.func(conn,args)

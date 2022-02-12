@@ -1,0 +1,219 @@
+#!/usr/bin/python3
+import sqlite3
+import argparse
+from pathlib import Path
+import json
+import hashlib
+import uuid
+import sys
+import configparser
+import paramiko
+import socket
+import subprocess
+import os
+
+def is_port_configured(port, dest_entries):
+    for entry in dest_entries:
+        if port == entry['dest_port']:
+            return True
+    return False
+
+def ssh_ctrl(ip, user, password,cmd):
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    # timeout=tout, 
+    try:
+        ssh.connect(hostname=ip, username=user, password=password, compress = True,look_for_keys=False, allow_agent=False)
+    except (socket.error,paramiko.AuthenticationException,paramiko.SSHException) as message:
+        print(f"ERROR: SSH connection to {ip} failed: {str(message)}")
+        sys.exit(1)
+
+    stdin, stdout, ssh_stderr = ssh.exec_command(cmd)
+    out = stdout.read()
+    stdin.flush()
+    ssh.close()
+    return out
+
+def query_destination_ports(name):
+    cmd = f'~/src/yaetunnel/yaetunnel-server query --name={name}'
+    out = ssh_ctrl('localhost','jpswensen','Cerete02',cmd)
+    server_ports_query = json.loads(out)
+
+    return server_ports_query
+
+def add_missing_ports(pots, server_ports_query):
+    for port in ports:
+        if not is_port_configured(port,server_ports_query):
+            print(f'Port {port} not configured. Adding to server')
+            # TODO:
+            cmd = f'~/src/yaetunnel/yaetunnel-server add --name={name} --uuid={new_uuid} --dest_port={port}'
+            out = ssh_ctrl('localhost','jpswensen','Cerete02',cmd)
+
+
+# First, we read from a config file to see the name and ports and find the uuid
+config = configparser.ConfigParser()
+config.read('yaetunnel.ini')
+name = config['YAETUNNEL']['name']
+ports = [int(i) for i in config['YAETUNNEL']['ports'].split(',')]
+autossh = config['YAETUNNEL']['autossh'] 
+server = config['YAETUNNEL']['server']
+pem_file = config['YAETUNNEL']['pem']
+m = hashlib.md5()
+m.update(name.encode('utf-8'))
+new_uuid = uuid.UUID(m.hexdigest())
+print(f'Name:{name}  UUID:{new_uuid}  Ports:{ports}')
+
+# First, we ssh to query if in the database
+# TODO: Need to fix this so that it points to the default location
+# cmd = f'~/src/yaetunnel/yaetunnel-server query --name={name}'
+# out = ssh_ctrl('localhost','jpswensen','Cerete02',cmd)
+# server_ports_query = json.loads(out)
+
+# Step 1: Check which ports are registered and register them if they are not
+server_ports_query = query_destination_ports(name)
+add_missing_ports(ports, server_ports_query)
+
+# Step 2: Query the server table for this host again so that we know the tunnel port and the destination port
+server_ports_query = query_destination_ports(name)
+for entry in server_ports_query:
+    print(entry)
+    tunnel_port = entry['tun_port']
+    destination_port = entry['dest_port']
+
+    cmd = f'/usr/bin/autossh -i {pem_file} -N {server} -R {tunnel_port}:localhost:{destination_port}'
+    cmd_Popen = [autossh,'-i',pem_file,'-N',server,'-R',f'{tunnel_port}:localhost:{destination_port}']
+
+    print(f'AUTOSSH CMD: {cmd_Popen}')
+    process = subprocess.Popen(cmd_Popen, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+# for port in ports:
+#     if not is_port_configured(port,server_ports_query):
+#         print(f'Port {port} not configured')
+#         # TODO:
+#         cmd = f'~/src/yaetunnel/yaetunnel-server add --name={name} --uuid={new_uuid} --dest_port={port}'
+#         out = ssh_ctrl('localhost','jpswensen','Cerete02',cmd)
+
+
+
+
+
+# def find_lowest_missing(lst):
+
+#     missing = [x for x in range(lst[0], lst[-1]+1) 
+#                                if x not in lst]
+#     return missing[0]
+
+# def create_yaetunnel_db(fn='yaetunnel.db'):
+#     path = Path(fn)
+#     if not path.is_file():
+#         # print('Creating database and populating')
+#         conn = sqlite3.connect(fn)
+#         conn.execute('''CREATE TABLE DESTINATIONS
+#             (ID INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+#             NAME           TEXT    NOT NULL,
+#             UUID           TEXT    NOT NULL,
+#             TUN_PORT       INT     NOT NULL,
+#             DEST_PORT      INT    NOT NULL);''')
+#         conn.close()
+#     else:
+#         # print(f'Database {fn} already exists')
+#         pass
+
+# def add_handler(conn,args):
+#     # print('Adding a new destination or ports')
+#     # print(conn)
+#     # print(args.name)
+#     # print(args.uuid)
+#     # print(args.ports)
+#     # TODO: First find the next available port larger than a specific number
+#     tun_port = 22001
+
+#     try:
+#         iterator = conn.cursor()
+#         iterator.execute("SELECT tun_port FROM DESTINATIONS")
+#         tun_ports = []    
+#         for row in iterator.fetchall():
+#             tun_ports.append(row[0])
+#         tun_ports.append(19999)
+#         tun_ports.append(max(tun_ports)+2)
+#         tun_ports = sorted(set(tun_ports))
+        
+#         tun_port = find_lowest_missing(tun_ports)
+
+#         cmd = f"""INSERT INTO DESTINATIONS (NAME,UUID,TUN_PORT,DEST_PORT) VALUES ('{args.name}','{args.uuid}',{tun_port},{args.dest_port});"""
+#         #print (cmd)
+#         conn.execute (cmd)
+#         conn.commit()
+#     except:
+#         print('FAIL')
+    
+#     print('SUCCESS')
+
+# def delete_handler(conn,args):
+#     # print('Removing a destination')
+#     try:
+#         cmd = ''
+#         if args.name is not None:
+#             cmd = f"""DELETE FROM DESTINATIONS WHERE name = '{args.name}';"""
+#         elif args.uuid is not None:
+#             cmd = f"""DELETE FROM DESTINATIONS WHERE uuid = '{args.uuid}';"""
+        
+#         # print (cmd)
+#         conn.execute (cmd)
+#         conn.commit()
+#     except:
+#         print('FAIL')
+#     print('SUCCESS')
+
+# def query_handler(conn,args):
+#     # print('Querying the list of destinations')
+#     try:
+#         cmd = "SELECT * FROM DESTINATIONS"
+#         if args.name is not None:
+#             cmd = f"""SELECT * FROM DESTINATIONS WHERE name = '{args.name}';"""
+#         elif args.uuid is not None:
+#             cmd = f"""SELECT FROM DESTINATIONS WHERE uuid = '{args.uuid}';"""
+
+#         iterator = conn.cursor()
+#         iterator.execute(cmd)
+#         dests = []    
+#         for row in iterator.fetchall():
+#             dest = {'name':row[1], 'uuid':row[2], 'tun_port':row[3], 'dest_port':row[4]}        
+#             dests.append(dest)
+#         dests_json = json.dumps(dests, indent=2)
+#         print(dests_json)
+#     except:
+#         print('FAIL')
+
+# create_yaetunnel_db()
+
+# parser = argparse.ArgumentParser()
+# subparsers = parser.add_subparsers(help='Commands of yaetunnel')
+# #parser.add_argument("-v", ...)
+
+# add_parser = subparsers.add_parser("add")
+# remove_parser = subparsers.add_parser("delete")
+# query_parser = subparsers.add_parser("query")
+
+# add_parser.add_argument("--name", help="The name of the machine being register")
+# add_parser.add_argument("--uuid", help="A unique identifier for the machine")
+# add_parser.add_argument("--dest_port", help="The destination port")
+# add_parser.set_defaults(func=add_handler)
+
+# remove_parser.add_argument("--name")
+# remove_parser.add_argument("--uuid")
+# remove_parser.set_defaults(func=delete_handler)
+
+# query_parser.add_argument("--name")
+# query_parser.add_argument("--uuid")
+# query_parser.set_defaults(func=query_handler)
+
+# args = parser.parse_args()
+# try:
+#     func = args.func
+# except AttributeError:
+#     parser.error('Too few arguments provided')
+
+
+# conn = sqlite3.connect('yaetunnel.db')
+# args.func(conn,args)
