@@ -12,110 +12,121 @@ import texttable
 import sys
 import socket
 
-def ssh_ctrl(ip, user, pemfile, cmd):
-    key = paramiko.RSAKey.from_private_key_file(os.path.expanduser(pemfile))
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    try:
-        ssh.connect(hostname=ip, username=user, pkey = key, compress = True,look_for_keys=False, allow_agent=False)
-    except (socket.error,paramiko.AuthenticationException,paramiko.SSHException) as message:
-        print(f"ERROR: SSH connection to {ip} failed: {str(message)}")
-        sys.exit(1)
+class YAETunnel:
 
-    stdin, stdout, ssh_stderr = ssh.exec_command(cmd)
-    out = stdout.read()
-    stdin.flush()
-    ssh.close()
-    return out
+    def __init__(self,config_filename='/etc/yaetunnel/yaetunnel.ini') -> None:
+        pass
+        # self.config = configparser.ConfigParser()
+        # self.config.read(config_filename)
 
-def query_registered_ports(pemfile,server):
-    cmd = f'~/src/yaetunnel/yaetunnel-server query'
-    out = ssh_ctrl(server,'ec2-user',pemfile,cmd)
-    
-    server_ports_query = []
-    if len(out) > 0:
-        server_ports_query = json.loads(out)
+        # self.server = self.config['YAETUNNEL']['server']
+        # self.username = self.config['YAETUNNEL']['username']
+        # self.pem_file = self.config['YAETUNNEL']['pem']
+        
+    def load_config(self, config_filename):
+        self.config = configparser.ConfigParser()
+        self.config.read(config_filename)
 
-    return server_ports_query
+        self.server = self.config['YAETUNNEL']['server']
+        self.username = self.config['YAETUNNEL']['username']
+        self.pem_file = self.config['YAETUNNEL']['pem']
 
+    def run(self, args):
+        args.func(args)
 
-def list_handler(args):
+    def ssh_ctrl(self, ip, user, pemfile, cmd):
+        key = paramiko.RSAKey.from_private_key_file(os.path.expanduser(pemfile))
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            ssh.connect(hostname=ip, username=user, pkey = key, compress = True,look_for_keys=False, allow_agent=False)
+        except (socket.error,paramiko.AuthenticationException,paramiko.SSHException) as message:
+            print(f"ERROR: SSH connection to {ip} failed: {str(message)}")
+            sys.exit(1)
 
-    config = configparser.ConfigParser()
-    config.read('yaetunnel.ini')
-    server = config['YAETUNNEL']['server']
-    pem_file = config['YAETUNNEL']['pem']
-    
-    registered_ports = query_registered_ports(pem_file,server)
-    table = texttable.Texttable()
-    table.header(["device","port","connected"])
-    for entry in registered_ports:
-        #print(entry)
-        table.add_row([entry["name"], entry["dest_port"], entry["connected"]])
-    table.set_cols_align(['l', 'r', 'r'])
-    print(table.draw())
+        stdin, stdout, ssh_stderr = ssh.exec_command(cmd)
+        out = stdout.read()
+        stdin.flush()
+        ssh.close()
+        return out
 
-def connect_handler(args):
-    pass
+    def query_registered_ports(self):
+        cmd = f'~/src/yaetunnel/yaetunnel-server query'
+        out =self. ssh_ctrl(self.server,self.username,self.pem_file,cmd)
+        
+        server_ports_query = []
+        if len(out) > 0:
+            server_ports_query = json.loads(out)
 
-    config = configparser.ConfigParser()
-    config.read('yaetunnel.ini')
-    server = config['YAETUNNEL']['server']
-    pem_file = config['YAETUNNEL']['pem']
-    
-    registered_ports = query_registered_ports(pem_file,server)
-    if args.name is None or args.port is None:
-        print('ERROR: you must provide a device name and port')
-    else:
-        entry_found = None
+        return server_ports_query
 
-        print(f'Searching for device {args.name} on port {args.port}')
+    def list_handler(self,args):
+            
+        registered_ports = self.query_registered_ports()
+        table = texttable.Texttable()
+        table.header(["device","port","connected"])
         for entry in registered_ports:
-            if entry["name"] == args.name and int(entry["dest_port"]) == int(args.port):
-                entry_found = entry
-                break
+            #print(entry)
+            table.add_row([entry["name"], entry["dest_port"], entry["connected"]])
+        table.set_cols_align(['l', 'r', 'r'])
+        print(table.draw())
+
+    def connect_handler(self,args):
         
-        if entry_found is None:
-            print("The specified device and port could not be found")
-        elif entry_found["connected"] == 0:
-            print("The device with the specified name and port is not connected")
+        registered_ports = self.query_registered_ports()
+        if args.name is None or args.port is None:
+            print('ERROR: you must provide a device name and port')
         else:
-            print(f"Should create tunnel to {entry['name']} on port {entry['dest_port']} through tunnel port {entry['tun_port']}")
+            entry_found = None
 
-        if int(args.port) == 22: # special case for ssh
-            cmd = f"ssh -i {pem_file} -A -t ec2-user@{server} ssh -A -p{entry['tun_port']} pi@localhost"                
-            if args.newterm is not None: 
-                if "darwin" in sys.platform:
-                    os.system(f"""osascript -e 'tell app "Terminal" to do script "{cmd}"'""")
-                else:
-                    print('Need to figure out how to launch a new terminal on other platforms')
-            else:            
-                os.system(cmd)
-        
-        else:
-            pass
-            # TODO: Need to create a standard tunnel and then spin
-            #cmd = f"ssh -i {pem_file} -A -t ec2-user@{server} ssh -A -p{entry['tun_port']} pi@localhost"                
-            cmd_tun = f"ssh -i {pem_file} -N -L {entry['tun_port']}:localhost:{entry['tun_port']} ec2-user@{server}"
-            os.system(cmd_tun)
+            print(f'Searching for device {args.name} on port {args.port}')
+            for entry in registered_ports:
+                if entry["name"] == args.name and int(entry["dest_port"]) == int(args.port):
+                    entry_found = entry
+                    break
+            
+            if entry_found is None:
+                print("The specified device and port could not be found")
+            elif entry_found["connected"] == 0:
+                print("The device with the specified name and port is not connected")
+            else:
+                print(f"Should create tunnel to {entry['name']} on port {entry['dest_port']} through tunnel port {entry['tun_port']}")
 
+            if int(args.port) == 22: # special case for ssh
+                cmd = f"ssh -i {self.pem_file} -A -t ec2-user@{self.server} ssh -A -p{entry['tun_port']} pi@localhost"                
+                if args.newterm != False: 
+                    if "darwin" in sys.platform:
+                        os.system(f"""osascript -e 'tell app "Terminal" to do script "{cmd}"'""")
+                    else:
+                        print('Need to figure out how to launch a new terminal on other platforms')
+                else:            
+                    os.system(cmd)
+            
+            else:
+                # Need to create a standard tunnel and then spin
+                #cmd = f"ssh -i {pem_file} -A -t ec2-user@{server} ssh -A -p{entry['tun_port']} pi@localhost"                
+                cmd_tun = f"ssh -i {self.pem_file} -N -L {entry['tun_port']}:localhost:{entry['tun_port']} ec2-user@{self.server}"
+                os.system(cmd_tun)
 
+client = YAETunnel()
 
 parser = argparse.ArgumentParser()
 subparsers = parser.add_subparsers(help='yaetunnel - Tunnel to a destination over and intermediate server')
 #parser.add_argument("-v", ...)
 
+parser.add_argument("--config", help="Speficy a config file that isn't in the normal location")
+
 list_parser = subparsers.add_parser("list")
 connect_parser = subparsers.add_parser("connect")
 
-list_parser.add_argument("--name", help="The name of the machine being register")
-list_parser.add_argument("--uuid", help="A unique identifier for the machine")
-list_parser.set_defaults(func=list_handler)
+list_parser.add_argument("--name", help="A filter for the device names to list")
+list_parser.add_argument("--uuid", help="A filter for the UUIDs to list")
+list_parser.set_defaults(func=client.list_handler)
 
 connect_parser.add_argument("--name")
 connect_parser.add_argument("--port")
 connect_parser.add_argument("--newterm",action='store_true')
-connect_parser.set_defaults(func=connect_handler)
+connect_parser.set_defaults(func=client.connect_handler)
 
 args = parser.parse_args()
 try:
@@ -123,4 +134,13 @@ try:
 except AttributeError:
     parser.error('Too few arguments provided')
 
-args.func(args)
+# Need to reload the config after we have parsed arguments
+config = '/etc/yaetunnel/yaetunnel.ini'
+if args.config is not None:
+    print(f"Loaded new config: {args.config}")
+    config = args.config
+client.load_config(config)
+
+
+client.run(args)
+
