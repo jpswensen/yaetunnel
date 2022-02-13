@@ -5,9 +5,9 @@ After=network-online.target
 [Service]
 Type=simple
 User=pi
-ExecStart=python3.8 /usr/local/bin/yaetunnel-client
-ExecStop=/usr/bin/pkill -9 -f python.*yaetunnel-client
+ExecStart=yaetunnel-client
+ExecStop=/usr/bin/pkill -9 -f yaetunnel-client
 Restart=always
 
-[Install]
 WantedBy=multi-user.target
+[Install]
