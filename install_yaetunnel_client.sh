@@ -17,7 +17,6 @@ if [ `id -u` = 0 ] ; then
     echo "Attempting to build yaetunnel client using pyinstaller"
     # I have to weirdly use the system python instead of my custom 3.8 beacuse I forgot to build with shared libraries 
     /usr/bin/python3 -m PyInstaller -F yaetunnel-client
-    /usr/bin/python3 -m PyInstaller -F yaetunnel-client
 
     echo "Installing yaetunnel-client binary"
     install -C -o $USER -g $GROUP -m 751 dist/yaetunnel-client /usr/local/bin
