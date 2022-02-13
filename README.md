@@ -47,6 +47,41 @@ The **connect** command requires the user specify a destination name and port. I
 
 ---
 
+## Setup
+
+1. Create an EC2 instance or other public-facing server with ssh capabilities. If you follow EC2 setup instructions, you end up with a .pem file that has the login credentials.
+2. Download this package. Update the .ini file before you run any of the install scripts
+3. Copy the package with the updated config file to all three machines: USER client, SERVER, and DESTINATION client
+4. Using the .pem, log into the SERVER and run 'sudo -E ./install_yaetunnel_server.sh' This creates a folder '/var/lib/yaetunnel' for the database, builds the yaetunnel-server executable using PyInstaller, and copies it to /usr/local/bin
+5. Using whatever means needed, log into the DESTINATION machine and run 'sudo -E ./install_yaetunnel_client.sh'. This creates a folder in '/etc/yaetunnel' and copies the config file yaetunnel.ini there. That is why it should be edited appropriately before this step. It also builds the yaetunnel-client executable  using PyInstaller, and copies it to /usr/local/bin. Finally, it copies the .service file to '/etc/systemd/system' and reloads the systemd daemon. This does not enable or start the service, but the script gives instructions on how to do so.
+6. On the USER machine, run 'sudo -E ./install_yaetunnel_user.sh'. This creates a folder in '/etc/yaetunnel' and copies the config file in there. Really the only elements that are important for the config file on this machine are the server, SERVER username, PEM location, and the DESTINATION username. It builds the yaetunnel executable using PyInstaller, and copies it to /usr/local/bin.
+
+_Example 1_
+At this point, if you started the service on the DESTINATION device, you should be ready to go. You can try the commands of 
+  yaetunnel list
+to get a list of all the available devices
+
+_Example 2_
+You can create a connection by using the command of
+  yaetunnel connect --name=devicename --port=22 --username=user
+This one in particular will open the ssh connection and you will be prompted for the password for the destination user (I haven't experimented yet with whether you can get a key from that machine and it applies properly through the tunnel). It assumes that port 22 is trying to have an interactive session.
+
+_Example 3_
+You can create an ssh connection in a newly launched terminal by using the command of 
+  yaetunnel connect --name=devicename --port=22 --username=user --newterm
+NOTE: I only have this working on MacOS so far.
+
+_Example 4_
+You can create a persistent tunnel for any other port using the command of
+  yaetunnel connect --name=devicename --port=5900 --username=user
+This will block at the command line and keep the tunnel open until the process is killed. In this scenario, I can then go to my vncviewer software and access it through the tunneled port number (which you will need to find from the yaetunnel list command). 
+
+**TODO: Just realizes I wasn't printing out the tunneled port number in the table from the list command. I need to fix that**
+
+
+
+---
+
 ## TODO
 
 1. I created some decent script to automate the process of installing. It relies in PyInstaller to make binaries of the three programs and install them to /usr/local/bin. The one thing that still is not fixed is that I have the username of the destiantion machine hard coded right now. Since I am testing on getting to my Rpi, this is 'pi'.
