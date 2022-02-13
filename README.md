@@ -49,7 +49,7 @@ The **connect** command requires the user specify a destination name and port. I
 
 ## TODO
 
-1. The repository as it stands is in a functioning state, but it doesn't do a good job of making it easy to set up. There are some hard-coded decisions about server names, user names, file locations, PEM interactions, etc. I want to make a script that installs all of the necessary dependencies, creates folders, copes files and sets permissions. I am also considering using pyinstaller to make pre-built executables for the particular platforms I am targeting.
+1. I created some decent script to automate the process of installing. It relies in PyInstaller to make binaries of the three programs and install them to /usr/local/bin. The one thing that still is not fixed is that I have the username of the destiantion machine hard coded right now. Since I am testing on getting to my Rpi, this is 'pi'.
 2. I really want to make a nice PyQT5 gui that can be run to simplify the process of getting connected.
 3. I want to add the ability to create subgroups based on a team name or team identifier. An example of this is that I often want remote access to a machine in one of the teaching labs at my university to help students who are there late at night working on projects. However, I don't want to show that machine to my consulting clients and don't want my consulting clients to see each others' devices. I suppose the real solution is to spin up an EC2 instance for each customer (which is still probably about $5 per month for a t2.micro instance or about $2 per month for a t3.nano or t3a.nano instance). 
 
