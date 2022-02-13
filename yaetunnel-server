@@ -6,128 +6,136 @@ import json
 import subprocess
 
 
-def find_lowest_missing(lst):
+class YAETunnelServer():
 
-    missing = [x for x in range(lst[0], lst[-1]+1) 
-                               if x not in lst]
-    return missing[0]
+    db_location = "/var/lib/yaetunnel/yaetunnel.db"
 
-def create_yaetunnel_db(fn='yaetunnel.db'):
-    path = Path(fn)
-    if not path.is_file():
-        # print('Creating database and populating')
-        conn = sqlite3.connect(fn)
-        conn.execute('''CREATE TABLE DESTINATIONS
-            (ID INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-            NAME           TEXT    NOT NULL,
-            UUID           TEXT    NOT NULL,
-            TUN_PORT       INT     NOT NULL,
-            DEST_PORT      INT     NOT NULL,
-            CONNECTED      INT     DEFAULT 0);''')
-        conn.close()
-    else:
-        # print(f'Database {fn} already exists')
-        pass
-
-def add_handler(conn,args):
-    # print('Adding a new destination or ports')
-    # print(conn)
-    # print(args.name)
-    # print(args.uuid)
-    # print(args.ports)
-    # TODO: First find the next available port larger than a specific number
-    tun_port = 19999
-
-    try:
-        iterator = conn.cursor()
-        iterator.execute("SELECT tun_port FROM DESTINATIONS")
-        tun_ports = []    
-        for row in iterator.fetchall():
-            tun_ports.append(row[0])
-        tun_ports.append(19999)
-        tun_ports.append(max(tun_ports)+2)
-        tun_ports = sorted(set(tun_ports))
+    def __init__(self) -> None:
         
-        tun_port = find_lowest_missing(tun_ports)
+        # Create the database file, if necessary, and then connect
+        self.create_yaetunnel_db(self.db_location)
+        self.conn = sqlite3.connect(self.db_location)
 
-        cmd = f"""INSERT INTO DESTINATIONS (NAME,UUID,TUN_PORT,DEST_PORT) VALUES ('{args.name}','{args.uuid}',{tun_port},{args.dest_port});"""
-        #print (cmd)
-        conn.execute (cmd)
-        conn.commit()
-    except:
-        print('FAIL')
-    
-    print('SUCCESS')
-
-def delete_handler(conn,args):
-    # print('Removing a destination')
-    try:
-        cmd = ''
-        if args.name is not None:
-            cmd = f"""DELETE FROM DESTINATIONS WHERE name = '{args.name}';"""
-        elif args.uuid is not None:
-            cmd = f"""DELETE FROM DESTINATIONS WHERE uuid = '{args.uuid}';"""
+    def run(self,args):
+        args.func(args)
         
-        # print (cmd)
-        conn.execute (cmd)
-        conn.commit()
-    except:
-        print('FAIL')
-    print('SUCCESS')
+    def create_yaetunnel_db(self, fn='yaetunnel.db'):
+        path = Path(fn)
+        if not path.is_file():
+            # print('Creating database and populating')
+            self.conn = sqlite3.connect(fn)
+            self.conn.execute('''CREATE TABLE DESTINATIONS
+                (ID INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                NAME           TEXT    NOT NULL,
+                UUID           TEXT    NOT NULL,
+                TUN_PORT       INT     NOT NULL,
+                DEST_PORT      INT     NOT NULL,
+                CONNECTED      INT     DEFAULT 0);''')
+            self.conn.close()
+        else:
+            # print(f'Database {fn} already exists')
+            pass
 
-def update_connection_status(conn,tun_port, status):
-    try:
-        cursor = conn.cursor()
-        sql_update_query = f"""UPDATE DESTINATIONS set CONNECTED = {status} where TUN_PORT = {tun_port}"""
-        #print(sql_update_query)
-        cursor.execute(sql_update_query)
-        conn.commit()
-        #print("Record Updated successfully ")
-        cursor.close()
-    except sqlite3.Error as error:
-        print("Failed to update sqlite table", error)
+    def find_lowest_missing(self,lst):
 
-def query_handler(conn,args):
-    # print('Querying the list of destinations')
+        missing = [x for x in range(lst[0], lst[-1]+1) 
+                                if x not in lst]
+        return missing[0]
 
-    try:
-        # First, update the database with the connection status of all the entries    
-        cmd = "SELECT * FROM DESTINATIONS"
-        iterator = conn.cursor()
-        iterator.execute(cmd)        
-        for row in iterator.fetchall():
-            name = row[1]
-            tun_port = row[3]
-            search_str = f'127.0.0.1:{tun_port}'
-            py2output = subprocess.check_output(['netstat', '-tuln'], encoding='UTF-8')
-            idx = py2output.find(search_str)
-            if idx != -1:
-                #print(f'Port {tun_port} CONNECTED for device {name}')
-                update_connection_status(conn,tun_port,1)
-            else:
-                #print(f'Port {tun_port} DISCONNECTED for device {name}')
-                update_connection_status(conn,tun_port,0)
-     
-        # Second, query the list and return than    
-        cmd = "SELECT * FROM DESTINATIONS"
-        if args.name is not None:
-            cmd = f"""SELECT * FROM DESTINATIONS WHERE name = '{args.name}';"""
-        elif args.uuid is not None:
-            cmd = f"""SELECT FROM DESTINATIONS WHERE uuid = '{args.uuid}';"""
+    def add_handler(self,args):        
+        # First find the next available port larger than a specific number
+        tun_port = 19999
+        try:
+            iterator = self.conn.cursor()
+            iterator.execute("SELECT tun_port FROM DESTINATIONS")
+            tun_ports = []    
+            for row in iterator.fetchall():
+                tun_ports.append(row[0])
+            tun_ports.append(19999)
+            tun_ports.append(max(tun_ports)+2)
+            tun_ports = sorted(set(tun_ports))
+            
+            tun_port = self.find_lowest_missing(tun_ports)
 
-        iterator = conn.cursor()
-        iterator.execute(cmd)
-        dests = []    
-        for row in iterator.fetchall():
-            dest = {'name':row[1], 'uuid':row[2], 'tun_port':row[3], 'dest_port':row[4], 'connected':row[5]}        
-            dests.append(dest)
-        dests_json = json.dumps(dests, indent=2)
-        print(dests_json)
-    except:
-        print('FAIL')
+            cmd = f"""INSERT INTO DESTINATIONS (NAME,UUID,TUN_PORT,DEST_PORT) VALUES ('{args.name}','{args.uuid}',{tun_port},{args.dest_port});"""
+            #print (cmd)
+            self.conn.execute (cmd)
+            self.conn.commit()
+        except:
+            print('FAIL')
+        
+        print('SUCCESS')
 
-create_yaetunnel_db("/home/ec2-user/src/yaetunnel/yaetunnel.db")
+    def delete_handler(self,args):
+        # print('Removing a destination')
+        try:
+            cmd = ''
+            if args.name is not None:
+                cmd = f"""DELETE FROM DESTINATIONS WHERE name = '{args.name}';"""
+            elif args.uuid is not None:
+                cmd = f"""DELETE FROM DESTINATIONS WHERE uuid = '{args.uuid}';"""
+            
+            # print (cmd)
+            self.conn.execute (cmd)
+            self.conn.commit()
+        except:
+            print('FAIL')
+        print('SUCCESS')
 
+    def update_connection_status(self,tun_port, status):
+        try:
+            cursor = self.conn.cursor()
+            sql_update_query = f"""UPDATE DESTINATIONS set CONNECTED = {status} where TUN_PORT = {tun_port}"""
+            #print(sql_update_query)
+            cursor.execute(sql_update_query)
+            self.conn.commit()
+            #print("Record Updated successfully ")
+            cursor.close()
+        except sqlite3.Error as error:
+            print("Failed to update sqlite table", error)
+
+    def query_handler(self,args):
+        # print('Querying the list of destinations')
+        try:
+            # First, update the database with the connection status of all the entries    
+            cmd = "SELECT * FROM DESTINATIONS"
+            iterator = self.conn.cursor()
+            iterator.execute(cmd)        
+            for row in iterator.fetchall():
+                name = row[1]
+                tun_port = row[3]
+                search_str = f'127.0.0.1:{tun_port}'
+                py2output = subprocess.check_output(['netstat', '-tuln'], encoding='UTF-8')
+                idx = py2output.find(search_str)
+                if idx != -1:
+                    #print(f'Port {tun_port} CONNECTED for device {name}')
+                    self.update_connection_status(tun_port,1)
+                else:
+                    #print(f'Port {tun_port} DISCONNECTED for device {name}')
+                    self.update_connection_status(tun_port,0)
+        
+            # Second, query the list and return than    
+            cmd = "SELECT * FROM DESTINATIONS"
+            if args.name is not None:
+                cmd = f"""SELECT * FROM DESTINATIONS WHERE name = '{args.name}';"""
+            elif args.uuid is not None:
+                cmd = f"""SELECT FROM DESTINATIONS WHERE uuid = '{args.uuid}';"""
+
+            iterator = self.conn.cursor()
+            iterator.execute(cmd)
+            dests = []    
+            for row in iterator.fetchall():
+                dest = {'name':row[1], 'uuid':row[2], 'tun_port':row[3], 'dest_port':row[4], 'connected':row[5]}        
+                dests.append(dest)
+            dests_json = json.dumps(dests, indent=2)
+            print(dests_json)
+        except:
+            print('FAIL')
+
+
+server = YAETunnelServer()
+
+# Create the argument parser
 parser = argparse.ArgumentParser()
 subparsers = parser.add_subparsers(help='Commands of yaetunnel')
 #parser.add_argument("-v", ...)
@@ -136,18 +144,18 @@ add_parser = subparsers.add_parser("add")
 remove_parser = subparsers.add_parser("delete")
 query_parser = subparsers.add_parser("query")
 
-add_parser.add_argument("--name", help="The name of the machine being register")
-add_parser.add_argument("--uuid", help="A unique identifier for the machine")
-add_parser.add_argument("--dest_port", help="The destination port")
-add_parser.set_defaults(func=add_handler)
+add_parser.add_argument("--name", help="The name of the machine/port being registered")
+add_parser.add_argument("--uuid", help="A unique identifier for the machine/port being registered")
+add_parser.add_argument("--dest_port", help="The destination port of the machine being registered")
+add_parser.set_defaults(func=server.add_handler)
 
 remove_parser.add_argument("--name")
 remove_parser.add_argument("--uuid")
-remove_parser.set_defaults(func=delete_handler)
+remove_parser.set_defaults(func=server.delete_handler)
 
 query_parser.add_argument("--name")
 query_parser.add_argument("--uuid")
-query_parser.set_defaults(func=query_handler)
+query_parser.set_defaults(func=server.query_handler)
 
 args = parser.parse_args()
 try:
@@ -155,6 +163,4 @@ try:
 except AttributeError:
     parser.error('Too few arguments provided')
 
-
-conn = sqlite3.connect('/home/ec2-user/src/yaetunnel/yaetunnel.db')
-args.func(conn,args)
+server.run(args)
