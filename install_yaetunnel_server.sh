@@ -10,7 +10,7 @@ if [ `id -u` = 0 ] ; then
     chown -R $USER:$GROUP /var/lib/yaetunnel
 
     echo "Attempting to build yaetunnel server using pyinstaller"
-    pyinstaller -F yaetunnel-server
+    python3 -m PyInstaller -F yaetunnel-server
 
     echo "Installing yaetunnel binary"
     install -C -o $USER -g $GROUP -m 751 dist/yaetunnel-server /usr/local/bin
