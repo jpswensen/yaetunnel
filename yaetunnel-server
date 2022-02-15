@@ -44,14 +44,14 @@ class YAETunnelServer():
 
     def add_handler(self,args):        
         # First find the next available port larger than a specific number
-        tun_port = 19999
+        tun_port = 49151
         try:
             iterator = self.conn.cursor()
             iterator.execute("SELECT tun_port FROM DESTINATIONS")
             tun_ports = []    
             for row in iterator.fetchall():
                 tun_ports.append(row[0])
-            tun_ports.append(19999)
+            tun_ports.append(41951)
             tun_ports.append(max(tun_ports)+2)
             tun_ports = sorted(set(tun_ports))
             
@@ -93,6 +93,30 @@ class YAETunnelServer():
             cursor.close()
         except sqlite3.Error as error:
             print("Failed to update sqlite table", error)
+
+    def reset_handler(self, args):
+        
+        # First, find the tunnel port
+        name = args.name
+        dest_port = args.dest_port
+        cmd = f"""SELECT tun_port FROM DESTINATIONS WHERE name = '{args.name}' AND dest_port = {dest_port};"""
+        
+        iterator = self.conn.cursor()
+        iterator.execute(cmd)
+        row = iterator.fetchone()
+        print(f'tun_port: {row[1]}')
+   
+        # Second, use lsof to find the PID of the port listener
+        cmd = ['sudo', 'lsof' '-i:{tun_port}']
+        py2output = subprocess.check_output(cmd, encoding='UTF-8')
+        responses = py2output.split()
+        pid = responses[1]
+
+        print(f'Should kill pid {pid} to force autossh to re-creat the connection')
+
+
+
+        # Third, kill this PID and force autossh on the DESTINATION to re-establish
 
     def query_handler(self,args):
         # print('Querying the list of destinations')
@@ -142,6 +166,7 @@ subparsers = parser.add_subparsers(help='Commands of yaetunnel')
 
 add_parser = subparsers.add_parser("add")
 remove_parser = subparsers.add_parser("delete")
+reset_parser = subparsers.add_parser('reset')
 query_parser = subparsers.add_parser("query")
 
 add_parser.add_argument("--name", help="The name of the machine/port being registered")
@@ -152,6 +177,10 @@ add_parser.set_defaults(func=server.add_handler)
 remove_parser.add_argument("--name")
 remove_parser.add_argument("--uuid")
 remove_parser.set_defaults(func=server.delete_handler)
+
+reset_parser.add_argument("--name", help="The name of the devide to reset the connection")
+reset_parser.add_argument("--dest_port", help="The destination port for whic the connection should be reset")
+reset_parser.set_defaults(func=server.reset_handler)
 
 query_parser.add_argument("--name")
 query_parser.add_argument("--uuid")

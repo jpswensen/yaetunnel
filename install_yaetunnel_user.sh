@@ -10,10 +10,10 @@ GROUP=$2
 
 if [ `id -u` = 0 ] ; then
     echo "Creating a folder in /etc/yaetunnel and giving ownership to $USER:$GROUP"
-    mkdir -p /etc/yaetunnel
-    chmod -R a+r /etc/yaetunnel
-    cp yaetunnel.ini /etc/yaetunnel/yaetunnel.ini
-
+    mkdir -p ~/.yaetunnel
+    cp yaetunnel_user.ini ~/.yaetunnel/yaetunnel_user.ini
+    chown -R $1:$2 ~/.yaetunnel
+    
     echo "Attempting to build yaetunnel user using pyinstaller"
     # I have to weirdly use the system python instead of my custom 3.8 beacuse I forgot to build with shared libraries 
     /usr/local/bin/python3 -m PyInstaller -F yaetunnel
