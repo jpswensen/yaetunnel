@@ -16,13 +16,13 @@ class ConnectionTableWidget(QtWidgets.QTableWidget):
     def populate(self):
         
         #Row count 
-        self.setRowCount(6)  
+        #self.setRowCount(6)  
   
         #Column count 
-        self.setColumnCount(4)   
+        self.setColumnCount(6)   
   
         #Table will fit the screen horizontally 
-        self.setHorizontalHeaderLabels(('Device','Destination Port','Local Port','Connected?','Action'))
+        self.setHorizontalHeaderLabels(('Device','Destination Port','Local Port','Available?','Tunnel','Launch'))
         self.horizontalHeader().setStretchLastSection(True) 
         self.horizontalHeader().setSectionResizeMode( 
             QHeaderView.Stretch) 
