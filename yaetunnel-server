@@ -104,7 +104,8 @@ class YAETunnelServer():
         iterator = self.conn.cursor()
         iterator.execute(cmd)
         row = iterator.fetchone()
-        print(f'tun_port: {row[1]}')
+        print(f'tun_port: {row[0]}')
+        tun_port = row[0]
    
         # Second, use lsof to find the PID of the port listener
         cmd = ['sudo', f'lsof', '-i', f':{tun_port}']
