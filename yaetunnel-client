@@ -92,7 +92,7 @@ class YAETunnelClient:
             #cmd_Popen = [self.autossh,'-i',self.pem_file,'-M','0','-N',f'{self.username}@{self.server}','-R',f'{tunnel_port}:localhost:{destination_port}']
             
             # New command that sends the keep alive packets to keep the tunnel going even when no normal traffic is going.
-            cmd_Popen = [self.autossh,'-i',self.pem_file,'-M','0','-o', '"ServerAliveInterval 15"', '-o', '"ServerAliveCountMax 4"', '-N',f'{self.username}@{self.server}','-R',f'{tunnel_port}:localhost:{destination_port}']
+            cmd_Popen = [self.autossh,'-i',self.pem_file,'-M','0','-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4', '-N',f'{self.username}@{self.server}','-R',f'{tunnel_port}:localhost:{destination_port}']
             
             print(f'AUTOSSH CMD: {cmd_Popen}')
             process = subprocess.Popen(cmd_Popen)            
