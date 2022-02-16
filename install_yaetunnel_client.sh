@@ -16,6 +16,8 @@ if [ `id -u` = 0 ] ; then
 
     echo "Attempting to build yaetunnel client using pyinstaller"
     # I have to weirdly use the system python instead of my custom 3.8 beacuse I forgot to build with shared libraries 
+    pip3 install pyinstaller
+    pip3 install paramiko
     python3 -m PyInstaller -F yaetunnel-client
 
     echo "Installing yaetunnel-client binary"
