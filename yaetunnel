@@ -104,7 +104,7 @@ class YAETunnel:
             else:
                 # Need to create a standard tunnel and then spin
                 #cmd = f"ssh -i {pem_file} -A -t ec2-user@{server} ssh -A -p{entry['tun_port']} pi@localhost"                
-                cmd_tun = f"ssh -i {self.pem_file} -N -L {entry['tun_port']}:localhost:{entry['tun_port']} ec2-user@{self.server}"
+                cmd_tun = f"ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -i {self.pem_file} -N -L {entry['tun_port']}:localhost:{entry['tun_port']} ec2-user@{self.server}"
                 os.system(cmd_tun)
 
 client = YAETunnel()

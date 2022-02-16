@@ -107,13 +107,16 @@ class YAETunnelServer():
         print(f'tun_port: {row[1]}')
    
         # Second, use lsof to find the PID of the port listener
-        cmd = ['sudo', 'lsof' '-i:{tun_port}']
+        cmd = ['sudo', f'lsof', '-i', f':{tun_port}']
         py2output = subprocess.check_output(cmd, encoding='UTF-8')
-        responses = py2output.split()
-        pid = responses[1]
+        responses = py2output.split('\n')
 
-        print(f'Should kill pid {pid} to force autossh to re-creat the connection')
+        if len(responses) > 1:
+            row = responses[1].split()
+            pid = row[1]
 
+            cmd = ['sudo', 'kill', '-9', f'{pid}']
+            py2output = subprocess.check_output(cmd, encoding='UTF-8')
 
 
         # Third, kill this PID and force autossh on the DESTINATION to re-establish

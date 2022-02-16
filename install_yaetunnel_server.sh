@@ -17,6 +17,12 @@ if [ `id -u` = 0 ] ; then
 
     rm -rf dist
     rm -rf build
+
+    # Update the sshd server to require the ClientAlive* messages to keep data going over the tunnel even
+    # when there isn't an active connection
+    sed -i 's/#ClientAliveInterval.*/ClientAliveInterval 15/' /etc/sshd/sshd_config
+    sed -i 's/#ClientAliveCountMax.*/ClientAliveCountMax 4/' /etc/sshd/sshd_config
+    
 else
     echo "You need to run as root to create folders and change permission in /var/lib/yaetunnel"
 fi
