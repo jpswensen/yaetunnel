@@ -91,7 +91,7 @@ class YAETunnel:
                 print(f"Should create tunnel to {entry['name']} on port {entry['dest_port']} through tunnel port {entry['tun_port']}")
 
             if int(args.port) == 22: # special case for ssh
-                cmd = f"ssh -i {self.pem_file} -A -t ec2-user@{self.server} ssh -A -p{entry['tun_port']} {self.destination_username}@localhost"                
+                cmd = f"ssh -i {self.pem_file} -A -t {self.username}@{self.server} ssh -A -p{entry['tun_port']} {self.destination_username}@localhost"                
                 if args.newterm != False: 
                     if "darwin" in sys.platform:
                         os.system(f"""osascript -e 'tell app "Terminal" to do script "{cmd}"'""")
@@ -104,7 +104,7 @@ class YAETunnel:
             else:
                 # Need to create a standard tunnel and then spin
                 #cmd = f"ssh -i {pem_file} -A -t ec2-user@{server} ssh -A -p{entry['tun_port']} pi@localhost"                
-                cmd_tun = f"ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -i {self.pem_file} -N -L {entry['tun_port']}:localhost:{entry['tun_port']} ec2-user@{self.server}"
+                cmd_tun = f"ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -i {self.pem_file} -N -L {entry['tun_port']}:localhost:{entry['tun_port']} {self.username}@{self.server}"
                 os.system(cmd_tun)
 
 client = YAETunnel()
